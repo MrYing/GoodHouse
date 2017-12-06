@@ -27,7 +27,12 @@ class MongoPipeline(object):
         self.client.close()
 
     def process_item(self, item, spider):
-        self.db[self.collection_name[item['table']]].update_one(
+        table = item.pop('table')
+        # for pictures
+        if item.get('tag'):
+            item.pop('tag')
+        collection = self.db[self.collection_name[table]]
+        collection.update_one(
             {'house_id': item['house_id']},
             {'$set': item},
             upsert=True
