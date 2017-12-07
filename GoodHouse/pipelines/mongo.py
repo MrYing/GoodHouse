@@ -3,10 +3,10 @@ import pymongo
 
 class MongoPipeline(object):
 
-    collection_name = {
-        'anjuke': 'anjuke',
-        'anjuke_room': 'anjuke_room'
-    }
+    # collection_name = {
+    #     'anjuke': 'anjuke',
+    #     'anjuke_room': 'anjuke_room'
+    # }
 
     def __init__(self, mongo_uri, mongo_db):
         self.mongo_uri = mongo_uri
@@ -27,12 +27,11 @@ class MongoPipeline(object):
         self.client.close()
 
     def process_item(self, item, spider):
-        table = item.pop('table')
         # for pictures
         if item.get('tag'):
             item.pop('tag')
-        collection = self.db[self.collection_name[table]]
-        collection.update_one(
+
+        self.db[item.pop('table')].update_one(
             {'house_id': item['house_id']},
             {'$set': item},
             upsert=True
