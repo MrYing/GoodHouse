@@ -1,12 +1,18 @@
-from random import choice
+from pymongo import MongoClient
 
-from GoodHouse.settings import AMAP_KEYS
+from GoodHouse.settings import MONGO_URI, MONGO_DATABASE
+from GoodHouse.utils.lbs import LBS
 
 
 class AMap(object):
 
-    to_ip_url = 'http://restapi.amap.com/v3/geocode/geo?key={}&address={}&city={}'
-    'http://restapi.amap.com/v3/place/around?key={}&location=116.456299,39.960767&radius=1000&types=商务写字楼'
+    def open_spider(self, spider):
+        self.client = MongoClient(MONGO_URI)
+        self.db = self.client[MONGO_DATABASE]
+        self.lbs = LBS()
+
+    def close_spider(self, spider):
+        self.client.close()
 
     def process_item(self, item, spider):
-        pass
+        return self.lbs.get_poi(item)
