@@ -24,10 +24,8 @@ class Anjuke(Spider):
     ]
 
     city_dict = {
-        'https://xa.fang.anjuke.com/loupan/': 'xian'
+        'https://xa.fang.anjuke.com/loupan/': '西安市'
     }
-
-    collection = MongoClient(MONGO_URI).client[MONGO_DATABASE].anjuke
 
     kw_dict = {
         '楼盘名称': 'name',
@@ -206,21 +204,20 @@ class Anjuke(Spider):
             self.logger.error('json loads error %s', response.url)
             return
 
-        # TODO: data structure
-        for label, pic in zip(labels, data):
-            yield {
-                'house_id': response.meta['house_id'],
-                'tag': 'album',
-                'table': 'anjuke',
-                'label': label,
-                'album': [
-                    {
-                        'picture_url': url,
-                        'picture_description': des
-                    }
-                    for url, des in zip(pic['big'], pic['image_des'])
-                ]
-            }
+        yield {
+            'house_id': response.meta['house_id'],
+            'tag': 'album',
+            'table': 'anjuke',
+            'album': [
+                {
+                    'picture_label': label,
+                    'picture_url': url,
+                    'picture_description': des
+                }
+                for label, pic in zip(labels, data)
+                for url, des in zip(pic['big'], pic['image_des'])
+            ]
+        }
 
         # pic_des_list = self.ptn_pic_des.findall(html)
         # pic_url_list = self.ptn_pic_url.findall(html)
@@ -303,8 +300,10 @@ class Anjuke(Spider):
         else:
             room['room_album'] = [
                 {
-                    'pic_title': find(item, './/span[@class="title"]/text()'),
-                    'pic_url': find(item, './/img/@src')
+                    # TODO: picture_title
+                    'picture_title': find(item,
+                                          './/span[@class="title"]/text()'),
+                    'picture_url': find(item, './/img/@imglazyload-src')
                 }
                 for item in pics
             ]
