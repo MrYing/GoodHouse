@@ -3,13 +3,11 @@ https://xian.focus.cn/loupan/171918/xiangqing.html
 created at 2017.12.4 by broholens
 """
 
-import re
-import json
 from math import ceil
 
 from scrapy import Spider, Request
 
-from GoodHouse.utils.f import find, house_type_split
+from GoodHouse.utils.f import find
 from GoodHouse.xpath import souhujiaodian as shjd_xp
 
 
@@ -29,14 +27,14 @@ class Souhujiaodian(Spider):
         '楼盘名称': 'name',
         '建成年代': 'built_ear',
         '物业类型': 'property_type',
-        '项目特色': 'labels',
+        '项目特色': 'features',
         # '参考单价': 'price',
         '建筑类型': 'building_type',
         '装修标准': 'decoration_standards',
         '产权年限': 'durable_years',
         '装修情况': 'renovation_condition',
         '开发商': 'developer',
-        '环线位置': 'loop_location',
+        '环线位置': 'region',  # 'loop_location',
         '投资商': 'investor',
         '品牌商': 'brand',
         '楼盘地址': 'address',
@@ -44,6 +42,7 @@ class Souhujiaodian(Spider):
         '销售状态': 'sale_status',
         '开盘时间': 'opening_time',
         '交房时间': 'delivery_time',
+        '售楼地址': 'sale_address',
         '售楼电话': 'telephone',
         '轨道交通': 'rail',
         '公交路线': 'bus',
@@ -53,6 +52,7 @@ class Souhujiaodian(Spider):
         '容积率': 'floor_area_ratio',
         '绿化率': 'green_ratio',
         '车位数': 'parking_count',
+        '停车位': 'parking_count',
         '楼栋总数': 'building_count',
         '总户数': 'householder_count',
         '物业费': 'property_fee',
@@ -61,17 +61,15 @@ class Souhujiaodian(Spider):
         '内部配套': 'internal_facilities',
         '建材设备': 'building_material_equipment',
         '供暖方式': 'heating_method',
+        '物业公司': 'property_company',
         # '最低首付': 'min_deposit',
         # '楼盘优惠': 'discount',
         # '楼盘户型': 'house_type',
-        # # '售楼处地址': 'sale_address',
         # '预售许可证': 'license',
         #
         # '规划户数': 'householder_count',
         # '楼层状况': 'story_status',
         # '工程进度': 'project_progress',
-        #
-        # '物业公司': 'property_company',
         #
         # '车位比': 'parking_ratio',
         # # business
@@ -105,6 +103,14 @@ class Souhujiaodian(Spider):
         # '招租客群': 'customer'
     }
 
+    room_details_dict = {
+        '居     室：': 'house_type',
+        '层   高：': 'house_storey_height',
+        '户型朝向：': 'house_distribution',
+        '总套数：': 'house_count',
+        '建筑面积：': 'house_area'
+    }
+
     def parse(self, response):
         total_count = find(response, shjd_xp.TOTAL_COUNT)
         if not total_count:
@@ -132,10 +138,12 @@ class Souhujiaodian(Spider):
                           })
             # 户型
             yield Request(url=response.meta['host']+house_id+'/huxing/',
-                          callback=self.parse_huxing)
+                          callback=self.parse_huxing_link,
+                          meta={'house_id': house_id})
             # 相册
             yield Request(url=response.meta['host']+house_id+'/xiangce/',
-                          callback=self.parse_xiangce)
+                          callback=self.parse_xiangce_link,
+                          meta={'house_id': house_id})
 
     def parse_xiangqing(self, response):
         house = {
@@ -144,18 +152,23 @@ class Souhujiaodian(Spider):
             'house_id': response.meta['house_id'],
             'alias_name': find(response, shjd_xp.OTHER_NAME),
         }
+        labels = find(response, shjd_xp.LABELS, False)
+        if not labels:
+            self.logger.warning('empty labels! %s', response.url)
+        else:
+            house['labels'] = labels
 
         base_items = response.xpath(shjd_xp.INFO)
         if not base_items:
             self.logger.error('base info is empty! %s', response.url)
-            return
-        for item in base_items:
-            self.base(house, item, 'l')
-            self.base(house, item, 'r')
+        else:
+            for item in base_items:
+                self.base(house, item, 'l')
+                self.base(house, item, 'r')
 
         licenses = response.xpath(shjd_xp.LICENSE)
         if not licenses:
-            self.logger.error('base info is empty! %s', response.url)
+            self.logger.error('license info is empty! %s', response.url)
         else:
             house['license'] = [
                 {
@@ -183,12 +196,14 @@ class Souhujiaodian(Spider):
 
         house['description'] = find(response, shjd_xp.DESCRIPTION)
 
+        yield house
+
     def base(self, house, item, d):
         key = find(item, f'./td[@class="label-{d}"]/text()') and \
             find(item, f'./td[@class="label-{d}"]/text()').strip('：')
         value = find(item, f'./td[@class="text-{d}"]/text()') or \
             find(item, f'./td[@class="text-full"]/text()')
-        if not key or key == '售楼地址':
+        if not key:
             return
 
         if not self.kw_dict.get(key):
@@ -196,11 +211,73 @@ class Souhujiaodian(Spider):
             return
         house[self.kw_dict[key]] = value
 
-    def license(self, response):
-        pass
-
-    def parse_huxing(self, response):
-        pass
+    def parse_xiangce_link(self, response):
+        pics = response.xpath(shjd_xp.PICTURE_URLS)
+        if not pics:
+            self.logger.error('picture unreachable! %s', response.url)
+            return
+        for pic in pics:
+            yield Request(url=find(pic, './@href'),
+                          callback=self.parse_xiangce,
+                          meta={
+                              'house_id': response.meta['house_id'],
+                              'label': find(pic, './text()').split('(')[0]
+                          })
 
     def parse_xiangce(self, response):
-        pass
+        yield {
+            'house_id': response.meta['house_id'],
+            'tag': 'album',
+            'table': 'souhujiaodian',
+            'album': [
+                {
+                    'picture_url': find(img, './@src'),
+                    'picture_label': response.meta['label'],
+                    'picture_description': find(img, './@data-name')
+                }
+                for img in response.xpath(shjd_xp.PICTURES)
+            ]
+        }
+
+    def parse_huxing_link(self, response):
+        rooms = find(response, shjd_xp.ROOM, False)
+        if not rooms:
+            self.logger.error('room urls unreachable! %s', response.url)
+            return
+        for room in rooms:
+            yield Request(room,
+                          callback=self.parse_huxing,
+                          meta={'house_id': response.meta['house_id']})
+
+    def parse_huxing(self, response):
+        room = {
+            'house_id': response.meta['house_id'],
+            'table': 'souhujiaodian_room',
+        }
+
+        room_pics = find(response, shjd_xp.ROOM_PICS, False)
+        if not room_pics:
+            self.logger.warning('room pictures unreachable! %s', response.url)
+        else:
+            room['room_album'] = [{'picture_url': img} for img in room_pics]
+
+        room['room_type'] = find(response, shjd_xp.ROOM_TYPE)
+        room['room_sale_status'] = find(response, shjd_xp.SALE_STATUS)
+        price = ''.join(find(response, shjd_xp.ROOM_PRICE, False))
+        room['reference_price'] = price
+
+        room_info = response.xpath(shjd_xp.ROOM_INFO)
+        if not room_info:
+            self.logger.warning('room info unreachable! %s', response.url)
+        else:
+            for item in room_info:
+                key = find(item, './label/text()')
+                self.room_details_dict[key] = find(item, './text()')
+
+        room_des = response.xpath(shjd_xp.ROOM_DESCRIPTION)
+        if not room_des:
+            self.logger.warning('room description empty! %s', response.url)
+        else:
+            room['room_description'] = find(room_des, '../div/text()')
+
+
