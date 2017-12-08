@@ -7,3 +7,4 @@ from GoodHouse.spiders.anjuke import Anjuke
 process = CrawlerProcess(get_project_settings())
 process.crawl(Anjuke)
 process.start()
+
