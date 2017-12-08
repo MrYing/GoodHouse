@@ -1,2 +1,8 @@
 TOTAL_COUNT = '//span[@class="s-m-fr"]/strong/text()'
 HOUSE_IDS = '//div[@id="bd-left"]//div[contains(@class, "s-lp-all")]/@event-tracking-param-project'
+OTHER_NAME = '//span[@class="loupan-other-name"]/text()'
+LABELS = '//ul[contains(@class, "tag-list")]/li/text()'
+INFO = '//div[@id="bd-left"]//tr'
+LICENSE = '//div[contains(@class, "saleLicense")]//tr'
+PRICE = '//div[@id="prizeinfo"]//tr'
+DESCRIPTION = '//div[@id="lpdes"]/p[@class="panel-para"]/text()'
