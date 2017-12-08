@@ -8,11 +8,9 @@ import json
 from math import ceil
 
 from scrapy import Spider, Request
-from pymongo import MongoClient
 
-from GoodHouse.settings import MONGO_DATABASE, MONGO_URI
 from GoodHouse.utils.f import find, house_type_split
-from GoodHouse.xpath import anjuke_xpath as ajk_xp
+from GoodHouse.xpath import anjuke as ajk_xp
 
 
 class Anjuke(Spider):
@@ -256,8 +254,9 @@ class Anjuke(Spider):
     def parse_pictorial(self, response):
         pic_items = response.xpath(ajk_xp.PIC_ITEMS)
         if not pic_items:
-            self.logger.error('pictorial is empty %s', response.url)
+            self.logger.warning('pictorial is empty %s', response.url)
             return
+
         yield {
             'house_id': response.meta['house_id'],
             'tag': 'pictorial',
@@ -269,13 +268,13 @@ class Anjuke(Spider):
                     'picture_description': find(item, './/p/text()')
                 }
                 for item in pic_items
-            ]
+            ][:-2]
         }
 
     def parse_room_count(self, response):
         total = find(response, ajk_xp.ROOM_COUNT)
         if not total:
-            self.logger.error('room count is empty. %s', response.url)
+            self.logger.warning('room count is empty. %s', response.url)
             return
         for page in range(1, int(ceil(int(total) / 8)) + 1):
             url = str(response.url).replace('.html', f'/s?p={page}')
@@ -284,7 +283,7 @@ class Anjuke(Spider):
     def parse_room_url(self, response):
         urls = find(response, ajk_xp.ROOM_URLS, False)
         if not urls:
-            self.logger.error('room urls is empty. %s', response.url)
+            self.logger.warning('room urls is empty. %s', response.url)
             return
         for url in urls:
             yield Request(url, callback=self.parse_room)
@@ -296,14 +295,12 @@ class Anjuke(Spider):
         }
         pics = response.xpath(ajk_xp.ROOM_TYPE_PICS)
         if not pics:
-            self.logger.error('room pictures is empty. %s', response.url)
+            self.logger.warning('room pictures is empty. %s', response.url)
         else:
             room['room_album'] = [
                 {
-                    # TODO: picture_title
-                    'picture_title': find(item,
-                                          './/span[@class="title"]/text()'),
-                    'picture_url': find(item, './/img/@imglazyload-src')
+                    'picture_title': find(item, './@data-title'),
+                    'picture_url': find(item, './img/@imglazyload-src')
                 }
                 for item in pics
             ]
@@ -322,14 +319,14 @@ class Anjuke(Spider):
 
         labels = find(response, ajk_xp.ROOM_LABELS, False)
         if not labels:
-            self.logger.error('room labels is empty %s', response.url)
+            self.logger.warning('room labels is empty %s', response.url)
         else:
             room['room_sale_status'] = labels[0]
             room['room_labels'] = [label for label in labels[1:]]
 
         price = response.xpath(ajk_xp.ROOM_PRICE)
         if not price:
-            self.logger.error('room price is empty %s', response.url)
+            self.logger.warning('room price is empty %s', response.url)
         else:
             for item in price:
                 name = find(item, './/strong/text()')
@@ -340,7 +337,7 @@ class Anjuke(Spider):
 
         room_details = response.xpath(ajk_xp.ROOM_DETAILS)
         if not room_details:
-            self.logger.error('room details is empty %s', response.url)
+            self.logger.warning('room details is empty %s', response.url)
         else:
             for item in room_details:
                 name = find(item, './strong/text()')
@@ -351,7 +348,7 @@ class Anjuke(Spider):
 
         room_description = find(response, ajk_xp.ROOM_DESCRIPTION, False)
         if not room_description:
-            self.logger.error('room description is empty %s', response.url)
+            self.logger.warning('room description is empty %s', response.url)
         else:
             room['room_description'] = ' '.join(room_description)
 
