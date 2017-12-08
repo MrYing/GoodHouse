@@ -22,3 +22,9 @@ def house_type_split(seq):
         except:
             results.append(i)
     return results
+
+
+def cut_queue(q, length):
+    if q.qsize() > length:
+        return [q.get() for _ in range(length)]
+    return [q.get() for _ in range(q.qsize())]
