@@ -11,6 +11,7 @@ from GoodHouse.settings import AMAP_KEYS
 class LBS:
 
     logger = logging.Logger(__name__)
+    logger.setLevel('INFO')
 
     to_ip_url = 'http://restapi.amap.com/v3/geocode/geo?key={}&address={}&city={}'
     to_poi_url = 'http://restapi.amap.com/v3/place/around?key={}&location={}&radius={}&types={}'
@@ -69,7 +70,7 @@ class LBS:
     # '071900'  # 殡仪馆
     # '110100|190204|190205|110200'  # 公园广场 河流 湖泊 景点
     def get_ip(self, item):
-        address = item['region'] + item['address'] + item['name']
+        address = item.get('region', '') + item['address'] + item['name']
         url = self.to_ip_url.format(choice(AMAP_KEYS),
                                     address,
                                     item['city'])
@@ -77,6 +78,8 @@ class LBS:
         if int(result.get('count', 0)) == 0:
             self.logger.error('can not find ip %s', url)
             return item
+
+        self.logger.info('get ip! %s', url)
         result = result['geocodes'][0]
 
         item.update({
@@ -85,10 +88,10 @@ class LBS:
             'district': result['district'],
             'location': result['location']
         })
-        # return item
+        return item
 
     def get_poi(self, item):
-        self.get_ip(item)
+        item = self.get_ip(item)
 
         result = {}
         for poi in self.pois:
@@ -102,11 +105,13 @@ class LBS:
                 result[poi['name']] = []
                 continue
 
-            result[poi['name']] = self.sort_pois(poi.get('pois'))
+            result[poi['name']] = self.sort_pois(poi_results.get('pois'))
+
+        self.logger.info('get pois! %s', item['name'])
         return item.update({'pois': result})
 
     def sort_pois(self, pois_raw):
-        # TODO: 只拿取前20个
+        # TODO: 只拿前20个
         return pois_raw and sorted([
             {
                 'poi_name': poi['name'],
