@@ -11,6 +11,7 @@ from scrapy import Spider, Request
 
 from GoodHouse.utils.f import find, house_type_split
 from GoodHouse.xpath import anjuke as ajk_xp
+from GoodHouse.settings import CITY
 
 
 class Anjuke(Spider):
@@ -18,12 +19,13 @@ class Anjuke(Spider):
     name = 'anjuke'
 
     start_urls = [
-        'https://xa.fang.anjuke.com',  # xi'an
+        'https://xa.fang.anjuke.com/',
+        'https://bj.fang.anjuke.com/',
+        'https://hz.fang.anjuke.com/',
+        'https://sz.fang.anjuke.com/',
+        'https://gz.fang.anjuke.com/',
+        'https://sh.fang.anjuke.com/',
     ]
-
-    city_dict = {
-        'https://xa.fang.anjuke.com/loupan/': '西安市'
-    }
 
     kw_dict = {
         '楼盘名称': 'name',
@@ -122,6 +124,7 @@ class Anjuke(Spider):
             house_id = house_link.rstrip('/').split('/')[-1].split('.')[0]
             # if self.collection.find({'house_id': house_id}).count() > 0:
             #     continue
+            city = house_link.split('.')[0].split('/')[-1]
             host = house_link.split(house_id)[0]
             url = host + f'canshu-{house_id}.html'
             # 基本参数
@@ -129,7 +132,7 @@ class Anjuke(Spider):
                           callback=self.parse_house,
                           meta={
                               'house_id': house_id,
-                              'city': self.city_dict[host]
+                              'city': CITY[city]
                           })
 
             # 户型
@@ -144,10 +147,10 @@ class Anjuke(Spider):
     def parse_house(self, response):
         house = {
             'sale_status': find(response, ajk_xp.SALE_STATUS),
-            'telephone': '转'.join(find(response, ajk_xp.TELEPHONE, False)),
+            'telephone': '-'.join(find(response, ajk_xp.TELEPHONE, False)),
             'house_id': response.meta['house_id'],
             'city': response.meta['city'],
-            'table': 'anjuke'
+            'table': self.name
         }
         # 参数
         for item in response.xpath(ajk_xp.ITEMS):
@@ -205,7 +208,7 @@ class Anjuke(Spider):
         yield {
             'house_id': response.meta['house_id'],
             'tag': 'album',
-            'table': 'anjuke',
+            'table': self.name,
             'album': [
                 {
                     'picture_label': label,
@@ -260,7 +263,7 @@ class Anjuke(Spider):
         yield {
             'house_id': response.meta['house_id'],
             'tag': 'pictorial',
-            'table': 'anjuke',
+            'table': self.name,
             'pictorial': [
                 {
                     'picture_url': find(item, './/img/@data-src'),
@@ -291,7 +294,7 @@ class Anjuke(Spider):
     def parse_room(self, response):
         room = {
             'house_id': response.url.split('/')[-1].split('-')[0],
-            'table': 'anjuke_room'
+            'table': self.name + '_room'
         }
         pics = response.xpath(ajk_xp.ROOM_TYPE_PICS)
         if not pics:
