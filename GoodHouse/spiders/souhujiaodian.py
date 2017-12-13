@@ -162,10 +162,10 @@ class Souhujiaodian(Spider):
             house['price_history'] = [
                 {
                     'release_time': find(item, './td[1]/span/text()'),
-                    'highest_price': find(item, './td[2]/text()'),
-                    'avg_price': find(item, './td[3]/span/text()'),
-                    'lowest_price': find(item, './td[4]/text()'),
-                    'price_details': find(item, './td[5]/text()')
+                    # 'highest_price': find(item, './td[2]/text()'),
+                    # 'avg_price': find(item, './td[3]/span/text()'),
+                    # 'lowest_price': find(item, './td[4]/text()'),
+                    'price_details': find(item, './td[last()]/text()')
                 }
                 for item in price
             ]
