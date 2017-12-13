@@ -98,20 +98,18 @@ ITEM_PIPELINES = {
 MONGO_URI = 'mongodb://localhost:27017'
 MONGO_DATABASE = 'houses'
 
-# AMAP_KEYS = [
-#     'c5c96d4b1a01d417d046703ae06d88bd',
-#     '1cc614cd037bd367fe86ffd0d1094540',
-#     'f37aa948833a47f6107650e440aee4ed',
-#     '3415a2784ab651a9ae0135623c84eff3',
-#     '5c52252dd22fdbb9c0f337488d78d3a8',
-#     '637ea37a488d5ada69b9add6b51ade91',
-#     'e1c83a76830ca6be62c67835ac12ad5c',
-#     '1aff8f5ae130e3703d4ba89f46c31df8',
-#     '1f6d0d8ea68c21088beec7e0ca5e7b1e',
-#     'd962e50247065e81077eb144175d5adc'
-# ]
 
 AMAP_KEYS = [
+    'c5c96d4b1a01d417d046703ae06d88bd',
+    '1cc614cd037bd367fe86ffd0d1094540',
+    'f37aa948833a47f6107650e440aee4ed',
+    '3415a2784ab651a9ae0135623c84eff3',
+    '5c52252dd22fdbb9c0f337488d78d3a8',
+    '637ea37a488d5ada69b9add6b51ade91',
+    'e1c83a76830ca6be62c67835ac12ad5c',
+    '1aff8f5ae130e3703d4ba89f46c31df8',
+    '1f6d0d8ea68c21088beec7e0ca5e7b1e',
+    'd962e50247065e81077eb144175d5adc',
     '0cf95ad6305d15b44bbd864ffa3c824d',
     '4eb65384161342b28599bf994c1f2450',
     'efcbbb3d1a384423b547d6725699d1c4',
@@ -124,5 +122,15 @@ AMAP_KEYS = [
     '4dd66beef79fb206cea77d1a78ff1b7e'
 ]
 
+CITY = {
+    'bj': '北京市',
+    'sh': '上海市',
+    'hz': '杭州市',
+    'sz': '深圳市',
+    'gz': '广州市',
+    'xa': '西安市',
+    'house': '北京市',
+    'xian': '西安市',
+}
 
 LOG_LEVEL = 'INFO'
