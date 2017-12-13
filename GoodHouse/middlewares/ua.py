@@ -6,4 +6,5 @@ class RandomUserAgent(UserAgentMiddleware):
 
     def process_request(self, request, spider):
         # TODO: NO mobile browser
-        request.headers.setdefault('User-Agent', UserAgent().random)
+        ua = UserAgent(use_cache_server=False).random
+        request.headers.setdefault('User-Agent', ua)
