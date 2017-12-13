@@ -3,7 +3,7 @@ get pois by gaodeAPI
 
 not ok
 """
-
+import time
 import logging
 import asyncio
 from random import choice
@@ -23,7 +23,6 @@ logging.basicConfig(
 class LBS:
 
     logger = logging.getLogger('LBS')
-    # logger.setLevel('INFO')
 
     to_ip_url = 'http://restapi.amap.com/v3/geocode/geo?key={}&address={}'
     to_poi_url = 'http://restapi.amap.com/v3/place/around?key={}&location={}&radius={}&types={}'
@@ -61,17 +60,23 @@ class LBS:
         self.client = MongoClient(MONGO_URI)
         self.db = self.client[MONGO_DATABASE]
 
-    semaphore = asyncio.Semaphore(150)
+    semaphore = asyncio.Semaphore(100)
 
     async def fetch(self, url):
-        with (await self.semaphore):
-            async with aiohttp.ClientSession() as s:
-                async with s.get(url) as r:
-                    return await r.json()
+        try:
+            with (await self.semaphore):
+                async with aiohttp.ClientSession() as s:
+                    async with s.get(url, timeout=60) as r:
+                        return await r.json()
+        except:
+            pass
 
     async def get_poi(self, address, house_id, collection):
         url = self.to_ip_url.format(choice(AMAP_KEYS), address)
         result = await self.fetch(url)
+
+        if not result:
+            return
 
         if int(result.get('count', 0)) == 0:
             self.logger.error('can not find ip %s', url)
@@ -97,6 +102,8 @@ class LBS:
             #     self.logger.error('can not find pois %s', url)
             #     poi_result[poi['name']] = []
             #     continue
+            if not poi_data:
+                continue
 
             poi_result[poi['name']] = self.sort_pois(poi_data.get('pois', []))
 
@@ -125,9 +132,8 @@ class LBS:
         for house in collection.find(
                 {'pois': {'$exists': 0}, 'address': {'$exists': 1}},
                 {'city': 1, 'region': 1, 'address': 1, 'name': 1}
-        ).limit(300):
-            address = house['city'] + house.get('region', '') +\
-                      house['address'] + house['name']
+        ):
+            address = house['city'] + house['address'] + house['name']
             yield address, ObjectId(house['_id'])
 
     # def store(self, house_id, address, collection):
@@ -168,4 +174,8 @@ class LBS:
 
 
 if __name__ == '__main__':
-    LBS().store_pois('anjuke')
+    LBS().store_pois('souhujiaodian')
+    # while True:
+    #     # LBS().store_pois('anjuke')
+    #     LBS().store_pois('souhujiaodian')
+    #     time.sleep(30 * 60)
