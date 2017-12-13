@@ -30,9 +30,14 @@ class MongoPipeline(object):
         # for pictures
         if item.get('tag'):
             item.pop('tag')
-
-        self.db[item.pop('table')].update_one(
-            {'house_id': item['house_id']},
-            {'$set': item},
-            upsert=True
-        )
+            self.db[item.pop('table')].update_one(
+                {'house_id': item.pop('house_id')},
+                {'$addToSet': item},
+                upsert=True
+            )
+        else:
+            self.db[item.pop('table')].update_one(
+                {'house_id': item.pop('house_id')},
+                {'$set': item},
+                upsert=True
+            )
