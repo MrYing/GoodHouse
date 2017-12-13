@@ -4,6 +4,7 @@ created at 2017.12.13 by broholens
 """
 
 import re
+import json
 
 from scrapy import Spider, Request
 
@@ -27,7 +28,7 @@ class Soufang(Spider):
         '物业类别：': 'property_type',
         '建筑类别：': ('building_type', './div[2]/span/text()'),
         '装修状况：': 'renovation_condition',
-        '产权年限：': ('durable_years', './div[2]/div/p/text()'),
+        '产权年限：': ('durable_years', './div[2]/div/p/text() | ./div[2]/text()'),
         '环线位置：': 'region',
         '开': ('developer', './div[2]/a/text()'),
         '楼盘地址：': 'address',
@@ -43,7 +44,12 @@ class Soufang(Spider):
         '中小学': ('school', './text()'),
         '综合商场': ('general_store', './text()'),
         '医院': ('hospital', './text()'),
-        '其他': ('peripheral_facilities', './text()'),
+        '其他': ('entertainment', './text()'),
+        '邮政': ('post_office', './text()'),
+        '银行': ('bank', './text()'),
+        '幼儿园': ('kindergarten', './text()'),
+        '大学': ('university', './text()'),
+        '小区内部配套': ('peripheral_facilities', './text()'),
 
         '占地面积：': 'land_area',
         '建筑面积：': 'total_area',
@@ -56,6 +62,25 @@ class Soufang(Spider):
         '物': 'property_fee',
         '物业费描述：': 'property_fee_description',
         '楼层状况：': 'story_status',
+
+        '写字楼级别：': 'office_building_level',
+        '楼栋情况：': 'story_status',
+        '所属商圈：': 'near_business',
+        '标准层面积：': 'standard_area',
+        '单套面积：': 'single_area',
+        '商业面积：': 'business_area',
+        '办公面积：': 'office_area',
+        '开间面积：': 'room_area',
+        '标准层高：': 'standard_floor_height',
+        '装修情况：': 'renovation_condition',
+        '楼层说明：': 'floor_description',
+        '物业费：': 'property_fee',
+        '物业说明：': 'property_fee_description',
+        '供暖方式：': 'heating_method',
+        '水电类别：': 'hydropower_category',
+        '停车位配置：': 'parking_count',
+        '电梯配置：': 'elevator',
+        '嫌恶设施': 'nasty_facility'
     }
 
     ptn_house_id = re.compile('showhouseid\':\'(.*?)\'')
@@ -65,7 +90,6 @@ class Soufang(Spider):
         if not pages:
             self.logger.error('cannot find pages of %s', response.url)
             return
-
         pages = int(pages.strip('/'))
         for page in range(1, pages + 1):
             url = response.url.rstrip('/') + f'/b9{page}/'
@@ -117,7 +141,7 @@ class Soufang(Spider):
         # 参数
         for item in response.xpath(sf.INFO):
             name = find(item, './div[1]/text() | ./span/text()')
-            if not name or name == '项目特色：':
+            if not name or name in ['项目特色：', '楼盘特色：', '预售许可证：']:
                 continue
             if name not in self.kw_dict:
                 self.logger.warning('name %s unknown %s', name, response.url)
@@ -129,35 +153,33 @@ class Soufang(Spider):
                 name, value = name[0], find(item, name[1])
             house[name] = value
 
-        licenses = response.xpath(sf.LICENSE)
-        if not licenses:
-            self.logger.warning('license unreachable! %s', response.url)
+        history = response.xpath(sf.HISTORY)
+        if not history:
+            self.logger.warning('history unreachable! %s', response.url)
         else:
-            house['license'] = [
-                {
-                    'license_number': find(item, './td[1]/text()'),
-                    'license_start_at': find(item, './td[2]/text()'),
-                    'bind_building': find(item, './td[3]/text()'),
-                }
-                for item in licenses
-            ]
+            if len(history) > 1:
+                licenses = history[0].xpath('.//tr[position()>1]')
+                house['license'] = [
+                    {
+                        'license_number': find(item, './td[1]/text()'),
+                        'license_start_at': find(item, './td[2]/text()'),
+                        'bind_building': find(item, './td[3]/text()'),
+                    }
+                    for item in licenses
+                ]
+                price = history[1].xpath('.//tr[position()>1]')
+            else:
+                price = history[0].xpath('.//tr[position()>1]')
 
-        price = response.xpath(sf.PRICE)
-        if not price:
-            self.logger.warning('price unreachable! %s', response.url)
-        else:
             house['price_history'] = [
                 {
                     'release_time': find(item, './td[1]/text()'),
-                    'avg_price': find(item, './td[2]/text()'),
-                    'lowest_price': find(item, './td[3]/text()'),
-                    'price_details': find(item, './td[4]/text()')
+                    'price_details': find(item, './td[last()]/text()')
                 }
                 for item in price
             ]
-        self.logger.warning('house: %s', house)
 
-        # yield house
+        yield house
 
     def parse_pic_link(self, response):
         pics = response.xpath(sf.PICS)
@@ -173,92 +195,81 @@ class Soufang(Spider):
             pic_id = find(pic, './@href').split('list_')[-1].split('_')[0]
             # TODO: 只拿了前6个,后面的要拿的话 parse_pic yield后会在 mongopipeline
             # TODO: set item, 会将前面的覆盖
-            # for page in range(1, int(pic_total_num / 6) + 1):
-            #     url = self.picture_url.format(host,
-            #                                   response.meta['house_id'],
-            #                                   pic_id,
-            #                                   page)
-            #     yield Request(url=url,
-            #                   callback=self.parse_pic,
-            #                   meta={'label': pic_label})
-            url = self.picture_url.format(host,
-                                          response.meta['house_id'],
-                                          pic_id,
-                                          1)
-            yield Request(url=url,
-                          callback=self.parse_pic,
-                          meta={
-                              'label': pic_label,
-                              'house_id': response.meta['house_id'],
-                          })
+            for page in range(1, int(int(pic_total_num) / 6) + 1):
+                url = self.picture_url.format(host,
+                                              response.meta['house_id'],
+                                              pic_id,
+                                              page)
+                yield Request(url=url,
+                              callback=self.parse_pic,
+                              meta={
+                                  'label': pic_label,
+                                  'house_id': response.meta['house_id'],
+                              })
 
     def parse_pic(self, response):
-        # yield {
-        #     'house_id': response.meta['house_id'],
-        #     'tag': 'album',
-        #     'table': self.name,
-        #     'album': [
-        #         {
-        #             'picture_label': response.meta['label'],
-        #             'picture_url': pic['url'],
-        #             'picture_description': pic['tital']
-        #         }
-        #         for pic in response.json()
-        #     ]
-        # }
-        self.logger.warning('picture %s', {
+        if response.meta['label'] == '装修案例':
+            album = [
+                {
+                    'picture_label': response.meta['label'],
+                    'picture_url': pic.get('picurl', ''),
+                    'picture_description': pic.get('case_name', '')
+                }
+                for pic in json.loads(response.text).get('caselist', [])
+            ]
+        elif response.meta['label'] == '360全景看房':
+            album = [
+                {
+                    'picture_label': response.meta['label'],
+                    'picture_url': pic.get('house_url', '')
+                }
+                for pic in json.loads(response.text)
+            ]
+        elif response.meta['label'] == '楼盘视频':
+            album = [
+                {
+                    'picture_label': response.meta['label'],
+                    'picture_url': pic.get('Vsurl', ''),
+                    'upload_date': pic.get('registdate', '')
+                }
+                for pic in json.loads(response.text).get('list', [])
+            ]
+        else:
+            album = [
+                {
+                    'picture_label': response.meta['label'],
+                    'picture_url': pic.get('url', ''),
+                    'picture_description': pic.get('title', '')
+                }
+                for pic in json.loads(response.text)
+            ]
+
+        yield {
             'house_id': response.meta['house_id'],
             'tag': 'album',
             'table': self.name,
-            'album': [
-                {
-                    'picture_label': response.meta['label'],
-                    'picture_url': pic['url'],
-                    'picture_description': pic['tital']
-                }
-                for pic in response.json()
-            ]
-        })
+            'album': album
+        }
 
     def parse_room(self, response):
-        for room in response.json():
-            # yield {
-            #     'table': self.name + '_room',
-            #     'house_id': response.meta['house_id'],
-            #     'reference_price': room['reference_price'] +
-            #                        room['reference_price_type'],
-            #     'room_score': room['hx_score'],
-            #     'room_description': room['hx_desp'],
-            #     'room_labels': room['huxing_feature'].split(','),
-            #     'room_type': room['housetitle'],
-            #     'house_type': '{}室{}厅{}卫{}厨'.format(room['room'],
-            #                                            room['hall'],
-            #                                            room['toilet'],
-            #                                            room['kitchen']),
-            #     'house_area': room['buildingarea'] + '平方米',
-            #     'room_sale_status': room['status'],
-            #     'room_album': [{
-            #         'picture_url': room['houseimageurl'],
-            #         'picture_title': room['housetitle']
-            #     }]
-            # }
-            self.logger.warning('room %s', {
+        for room in json.loads(response.text):
+            yield {
                 'table': self.name + '_room',
                 'house_id': response.meta['house_id'],
                 'reference_price': room['reference_price'] +
                                    room['reference_price_type'],
-                'room_score': room['hx_score'],
-                'room_description': room['hx_desp'],
-                'room_labels': room['huxing_feature'].split(','),
-                'room_type': room['housetitle'],
+                'room_score': room.get('hx_score', ''),
+                'room_description': room.get('hx_desp', ''),
+                'room_labels': room.get('huxing_feature').split(','),
+                'room_type': room.get('housetitle'),
                 'house_type': '{}室{}厅{}卫{}厨'.format(room['room'],
-                                                    room['hall'],
-                                                    room['toilet'],
-                                                    room['kitchen']),
-                'house_area': room['buildingarea'] + '平方米',
-                'room_sale_status': room['status'],
+                                                       room['hall'],
+                                                       room['toilet'],
+                                                       room['kitchen']),
+                'house_area': room.get('buildingarea', '') + '平方米',
+                'room_sale_status': room.get('status', ''),
                 'room_album': [{
-                    'picture_url': room['houseimageurl'],
-                    'picture_title': room['housetitle']
+                    'picture_url': room.get('houseimageurl', ''),
+                    'picture_title': room.get('housetitle', '')
                 }]
-            })
+            }
