@@ -17,6 +17,10 @@ class Soufang(Spider):
 
     name = 'soufang'
 
+    custom_settings = {
+        'DOWNLOAD_DELAY': 1,
+    }
+
     start_urls = [
         'http://newhouse.xian.fang.com/house/s/'
     ]
@@ -195,7 +199,10 @@ class Soufang(Spider):
             pic_id = find(pic, './@href').split('list_')[-1].split('_')[0]
             # TODO: 只拿了前6个,后面的要拿的话 parse_pic yield后会在 mongopipeline
             # TODO: set item, 会将前面的覆盖
-            for page in range(1, int(int(pic_total_num) / 6) + 1):
+            num = int(int(pic_total_num) / 6) + 1
+            # 只拿前3页
+            num = 4 if num > 3 else num
+            for page in range(1, num):
                 url = self.picture_url.format(host,
                                               response.meta['house_id'],
                                               pic_id,
