@@ -3,8 +3,8 @@ import logging
 from selenium import webdriver
 
 logging.basicConfig(
-    level=logging.WARNING,
-    format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s'
+    level=logging.INFO,
+    format='%(asctime)s %(filename)s %(levelname)s %(message)s'
     # datefmt='%a, %d %b %Y %H:%M:%S',
     # filename='myapp.log',
     # filemode='w'
@@ -17,10 +17,14 @@ class HuPu:
     提供登录、评论功能
     需要人为滑动验证登录
     """
+
+    max_comment_count = 300
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.driver = webdriver.Firefox()
         self.driver.set_page_load_timeout(10)
+        self.comment_count = 0
 
     def login(self, username, password):
         """
@@ -42,15 +46,22 @@ class HuPu:
         """
         添加评论
         """
+        # 自己每天最多回复自己３００条
+        if self.comment_count >= self.max_comment_count:
+            return
+
         if self.request(url) == 110:
             return
         try:
             self.driver.find_element_by_id('atc_content').send_keys(commentary)
             self.driver.find_element_by_id('fastbtn').click()
-            time.sleep(2)
         except:
             self.logger.error('find element error!')
-        time.sleep(2)
+            return
+
+        self.comment_count += 1
+        self.logger.info('comment count: %s', self.comment_count)
+        return 'ok'
 
     def request(self, url):
         """
@@ -67,11 +78,36 @@ class HuPu:
                 self.logger.error('request %s error!', url)
                 return 110
 
+    def comment_latest_20_posts(self, commentary):
+        if self.request('https://my.hupu.com/12173289170641/topic') == 110:
+            return
+        try:
+            xp = '//td[@class="p_title"]/a'
+            posts = [
+                post.get_attribute('href')
+                for post in self.driver.find_elements_by_xpath(xp)[:30]
+            ]
+            # for post in self.driver.find_elements_by_xpath(xp)[2:30]:
+            #     print(post.get_attribute('href'))
+            #     self.comment(post.get_attribute('href'), commentary)
+        except:
+            posts = []
+            self.logger.error('comment latest 20 error!')
+
+        for post in posts:
+            if not self.comment(post, commentary):
+                self.logger.error('error occurs when comment %s!', post)
+            else:
+                self.logger.info('comment %s successfully!', post)
+            time.sleep(120)
+
 
 if __name__ == '__main__':
     hupu = HuPu()
-    hupu.login('', '')
-    url = 'https://bbs.hupu.com/21155004.html'
-    commentary = '之前爬过，太惊险了！'
-    hupu.comment(url, commentary)
+    hupu.login('username', 'password')
+    commentary = '一切均为实拍 购买其他鞋子 降价信息 细节照片都可以咨询微信 clpro7 无限回收闲置球鞋 急用钱卖鞋的 寻求多方合作~'
+    while True:
+        hupu.comment_latest_20_posts(commentary)
+        if hupu.comment_count > hupu.max_comment_count:
+            break
     hupu.driver.close()
