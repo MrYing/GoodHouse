@@ -3,14 +3,12 @@
 def find(item, xpath, first=True):
     results = item.xpath(xpath)
     if not results:
-        if first is True:
-            return ''
-        return []
+        return '' if first is True else []
 
     if first is True:
-        result = results.extract_first().replace('\n', ' ').split(' ')
+        result = results.extract_first().replace('\n', '').split(' ')
         return ''.join(result).strip()
-    return [''.join(result.replace('\n', ' ').split(' ')).strip()
+    return [''.join(result.replace('\n', '').split(' ')).strip()
             for result in results.extract()]
 
 

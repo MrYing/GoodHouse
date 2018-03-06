@@ -1,21 +1,24 @@
 """
-https://xa.fang.anjuke.com
+获取安居客所有新房数据
 created at 2017.12.4 by broholens
 """
 
 import re
 import json
-from math import ceil
-
 from scrapy import Spider, Request
-
-from GoodHouse.utils.f import find, house_type_split
+from GoodHouse.utils.useful_functions import find
+from GoodHouse.utils.useful_functions import house_type_split
 from GoodHouse.xpath import anjuke as ajk_xp
 from GoodHouse.settings import CITY
+from GoodHouse.settings import base_info_dict
+from GoodHouse.settings import room_details_dict
+from GoodHouse.settings import room_price_dict
 
 
 class Anjuke(Spider):
-
+    """
+    获取指定城市安居客新房数据
+    """
     name = 'anjuke'
 
     start_urls = [
@@ -26,104 +29,30 @@ class Anjuke(Spider):
         'https://gz.fang.anjuke.com/',
         'https://sh.fang.anjuke.com/',
     ]
-
-    kw_dict = {
-        '楼盘名称': 'name',
-        '楼盘特点': 'labels',
-        '参考单价': 'price',
-        '物业类型': 'property_type',
-        '开发商': 'developer',
-        '区域位置': 'region',
-        '楼盘地址': 'address',
-        # '售楼处电话': 'telephone',
-        '最低首付': 'min_deposit',
-        '楼盘优惠': 'discount',
-        '楼盘户型': 'house_type',
-        '最新开盘': 'opening_time',
-        '交房时间': 'delivery_time',
-        '售楼处地址': 'sale_address',
-        '预售许可证': 'license',
-        '建筑类型': 'building_type',
-        '产权年限': 'durable_years',
-        '容积率': 'floor_area_ratio',
-        '绿化率': 'green_ratio',
-        '规划户数': 'householder_count',
-        '楼层状况': 'story_status',
-        '工程进度': 'project_progress',
-        '物业管理费': 'property_fee',
-        '物业公司': 'property_company',
-        '车位数': 'parking_count',
-        '车位比': 'parking_ratio',
-        # business
-        '开间面积': 'room_area',
-        '商业面积': 'business_area',
-        '总建筑面积': 'total_area',
-        '招商业态': 'business_model',
-        '临近商圈': 'near_business',
-        '周边人群': 'surrounding_people',
-        '出售类型': 'sale_type',
-        '得房率': 'room_rate',
-        '商铺总套数': 'shops_count',
-        '是否统一管理': 'is_unified_management',
-        '是否分割': 'is_segmentation',
-        '出租类型': 'rent_type',
-        '租金': 'rent',
-        '是否包含物业费': 'contain_property_fee',
-        '待租面积': 'for_rent_area',
-        '待租套数': 'for_rent_count',
-        '月供': 'monthly_payment',
-        '楼盘总价': 'total_price',
-        '标准层面积': 'standard_area',
-        '公共部分精装修': 'public_exquisite',
-        '临近CBD': 'cbd',
-        '已签约租户': 'tenants',
-        '已签约商户': 'tenants',
-        # office
-        '写字楼类型': 'office_building_type',
-        '写字楼级别': 'office_building_level',
-        '办公室面积': 'office_area',
-        '招租客群': 'customer'
-    }
-
-    room_price_dict = {
-        '参考总价:': 'reference_price',
-        '参考首付:': 'reference_down_payment',
-        '参考月供:': 'reference_monthly_payment'
-    }
-
-    room_details_dict = {
-        '居  室:': 'house_type',
-        '建筑面积:': 'house_area',
-        '朝  向:': 'house_orientation',
-        '层  高:': 'house_storey_height',
-        '户型分布:': 'house_distribution'
-    }
-
+    # 图片链接
     ptn_pic_loc = re.compile('imageAlbumData=(.*?),];')
-    # ptn_pic_des = re.compile('image_des:\[(.*?)]')
-    # ptn_pic_url = re.compile('big:\[(.*?)]')
 
     def parse(self, response):
+        # 获取总页数并逐一遍历
         pages = find(response, ajk_xp.TOTAL_PAGES)
         if not pages:
             self.logger.error('cannot find pages of %s', response.url)
             return
-        pages = int(ceil(int(pages) / 50))
-        # self.parse_house_link(response)
+        # 每页有50条数据
+        pages = int(pages) // 50 + 1
 
         for page in range(1, pages + 1):
             url = response.url.rstrip('/') + f'/loupan/all/p{page}/'
             yield Request(url, callback=self.parse_house_link)
 
     def parse_house_link(self, response):
+        # 获取每页所有房源链接并逐一遍历
         house_links = find(response, ajk_xp.HOUSE_LINKS, False)
         if not house_links:
             self.logger.error('cannot find house_link of %s', response.url)
             return
         for house_link in house_links:
             house_id = house_link.rstrip('/').split('/')[-1].split('.')[0]
-            # if self.collection.find({'house_id': house_id}).count() > 0:
-            #     continue
             city = house_link.split('.')[0].split('/')[-1]
             host = house_link.split(house_id)[0]
             url = host + f'canshu-{house_id}.html'
@@ -145,9 +74,9 @@ class Anjuke(Spider):
                           meta={'house_id': house_id})
 
     def parse_house(self, response):
+        # 解析房源的基本参数
         house = {
             'sale_status': find(response, ajk_xp.SALE_STATUS),
-            'telephone': '-'.join(find(response, ajk_xp.TELEPHONE, False)),
             'house_id': response.meta['house_id'],
             'city': response.meta['city'],
             'table': self.name
@@ -155,9 +84,9 @@ class Anjuke(Spider):
         # 参数
         for item in response.xpath(ajk_xp.ITEMS):
             name = find(item, ajk_xp.NAME)
-            if not name or name == '楼盘图片' or name == '售楼处电话':
+            if not name or name in ['楼盘图片', '售楼处电话']:
                 continue
-            if name not in self.kw_dict:
+            if name not in base_info_dict:
                 self.logger.warning('name %s unknown %s', name, response.url)
                 continue
             if name in ['楼盘名称', '开发商', '物业公司']:
@@ -167,19 +96,17 @@ class Anjuke(Spider):
                 value = find(item, './/a/text()', False)
                 if name == '楼盘户型':
                     value = house_type_split(value)
-            # elif name == '售楼处电话':
-            #     value = ' '.join(find(item, './/span/text()', False))
             elif name in ['区域位置', '参考单价']:
                 value = ''.join(find(item, './/text()', False)).strip()
                 value = value.lstrip(name).rstrip('[价格走势]').strip()
             else:
                 value = find(item, './div[contains(@class, "des")]/text()')
-            # self.logger.info('name %s, value %s', name, value)
-            house[self.kw_dict[name]] = value
+            house[base_info_dict[name]] = value
 
         yield house
 
     def parse_pic(self, response):
+        # 解析图片参数
         labels = find(response, ajk_xp.PIC_HEADER, False)
         if '画报' in labels:
             labels.remove('画报')
@@ -220,41 +147,8 @@ class Anjuke(Spider):
             ]
         }
 
-        # pic_des_list = self.ptn_pic_des.findall(html)
-        # pic_url_list = self.ptn_pic_url.findall(html)
-        # for label, pic_des, pic_url in zip(labels, pic_des_list, pic_url_list):
-    # def parse_pic_url(self, response):
-    #     urls = response.xpath(ajk_xp.PIC_HEAD_URLS)
-    #     if not urls:
-    #         self.logger.error('empty pictures %s', response.url)
-    #         return
-    #     for url in urls:
-    #         yield Request(find(url, './@href'),
-    #                       callback=self.parse_pic,
-    #                       meta={'label': find(url, './text()')})
-    #
-    # def parse_pic(self, response):
-    #     pics = response.xpath(ajk_xp.PIC)
-    #     if not pics:
-    #         self.logger.error('picture not found %s', response.url)
-    #         return
-    #     house_id = response.url.split('-')[-1].split('/')[0]
-    #     yield {
-    #         'house_id': house_id,
-    #         'tag': 'album',
-    #         'table': 'anjuke',
-    #         'album': [
-    #             {
-    #                 'label': response.meta['label'],
-    #                 'url': find(pic, './/img/@src'),
-    #                 'title': find(pic, './a[@class="album-des"]/text()'),
-    #                 'time': find(pic, './p[@class="album-time"]/text()')
-    #             }
-    #             for pic in pics
-    #         ]
-    #
-    #     }
     def parse_pictorial(self, response):
+        # 画报与图片不同
         pic_items = response.xpath(ajk_xp.PIC_ITEMS)
         if not pic_items:
             self.logger.warning('pictorial is empty %s', response.url)
@@ -275,15 +169,17 @@ class Anjuke(Spider):
         }
 
     def parse_room_count(self, response):
+        # 根据户型总数遍历每一页
         total = find(response, ajk_xp.ROOM_COUNT)
         if not total:
             self.logger.warning('room count is empty. %s', response.url)
             return
-        for page in range(1, int(ceil(int(total) / 8)) + 1):
+        for page in range(1, int(total) // 8 + 1 + 1):
             url = str(response.url).replace('.html', f'/s?p={page}')
             yield Request(url, callback=self.parse_room_url)
 
     def parse_room_url(self, response):
+        # 解析所有户型链接并逐一遍历
         urls = find(response, ajk_xp.ROOM_URLS, False)
         if not urls:
             self.logger.warning('room urls is empty. %s', response.url)
@@ -292,6 +188,7 @@ class Anjuke(Spider):
             yield Request(url, callback=self.parse_room)
 
     def parse_room(self, response):
+        # 解析户型数据
         room = {
             'house_id': response.url.split('/')[-1].split('-')[0],
             'table': self.name + '_room'
@@ -307,17 +204,7 @@ class Anjuke(Spider):
                 }
                 for item in pics
             ]
-        # titles = [i.strip()
-        #           for i in find(response, ajk_xp.ROOM_TITLES).split(',')]
-        # if len(titles) != 3:
-        #     self.logger.error('room type titles error %s', response.url)
-        # else:
-        #     room['room_type'], room['house_type'] = titles[:-1]
-        #     # re.findall('')
-        #     if '约' in titles[-1]:
-        #         room['area'] = titles[-1].split('约')[-1].strip('平米')
-        #     else:
-        #         room['area'] = titles[-1]
+
         room['room_type'] = find(response, ajk_xp.ROOM_TITLES).split(',')[0]
 
         labels = find(response, ajk_xp.ROOM_LABELS, False)
@@ -333,10 +220,10 @@ class Anjuke(Spider):
         else:
             for item in price:
                 name = find(item, './/strong/text()')
-                if name not in self.room_price_dict:
+                if name not in room_price_dict:
                     self.logger.warning('key %s unknown %s', name, response.url)
                     continue
-                room[self.room_price_dict[name]] = find(item, './span/text()')
+                room[room_price_dict[name]] = find(item, './span/text()')
 
         room_details = response.xpath(ajk_xp.ROOM_DETAILS)
         if not room_details:
@@ -344,10 +231,10 @@ class Anjuke(Spider):
         else:
             for item in room_details:
                 name = find(item, './strong/text()')
-                if name not in self.room_details_dict:
+                if name not in room_details_dict:
                     self.logger.warning('key %s unknown %s', name, response.url)
                     continue
-                room[self.room_details_dict[name]] = find(item, './span/text()')
+                room[room_details_dict[name]] = find(item, './span/text()')
 
         room_description = find(response, ajk_xp.ROOM_DESCRIPTION, False)
         if not room_description:
