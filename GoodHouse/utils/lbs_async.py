@@ -1,7 +1,5 @@
 """
 get pois by gaodeAPI
-
-not ok
 """
 import time
 import logging
@@ -131,7 +129,7 @@ class LBS:
     def get_address(self, collection):
         for house in collection.find(
                 {'pois': {'$exists': 0}, 'address': {'$exists': 1}},
-                {'city': 1, 'region': 1, 'address': 1, 'name': 1}
+                {'city': 1, 'address': 1, 'name': 1}
         ):
             address = house['city'] + house['address'] + house['name']
             yield address, ObjectId(house['_id'])
@@ -142,12 +140,12 @@ class LBS:
     #         {'_id': house_id},
     #         {'$set': item}
     #     )
-    def store(self, item, house_id, collection):
-        collection.update_one(
-            {'_id': ObjectId(house_id)},
-            {'$set': item}
-        )
-        self.logger.info('update %s', item)
+    # def store(self, item, house_id, collection):
+    #     collection.update_one(
+    #         {'_id': ObjectId(house_id)},
+    #         {'$set': item}
+    #     )
+    #     self.logger.info('update %s', item)
 
     def store_pois(self, collection_name):
         collection = self.db[collection_name]
@@ -169,13 +167,15 @@ class LBS:
         # for house_id, item in zip(house_ids, items):
         #     self.store(item, house_id, collection)
 
-        loop.close()
-        self.client.close()
+        # loop.close()
+        # self.client.close()
 
 
 if __name__ == '__main__':
-    LBS().store_pois('souhujiaodian')
-    # while True:
-    #     # LBS().store_pois('anjuke')
-    #     LBS().store_pois('souhujiaodian')
-    #     time.sleep(30 * 60)
+    # lbs = LBS()
+    # lbs.store_pois('anjuke')
+    while True:
+        # time.sleep(5*60)
+        LBS().store_pois('anjuke')
+        # LBS().store_pois('souhujiaodian')
+        time.sleep(30 * 60)
