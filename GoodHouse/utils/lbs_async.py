@@ -177,5 +177,5 @@ if __name__ == '__main__':
     while True:
         # time.sleep(5*60)
         LBS().store_pois('anjuke')
-        # LBS().store_pois('souhujiaodian')
-        time.sleep(30 * 60)
+        LBS().store_pois('souhujiaodian')
+        LBS().store_pois('soufang')
