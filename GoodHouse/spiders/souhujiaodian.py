@@ -7,7 +7,7 @@ from math import ceil
 
 from scrapy import Spider, Request
 
-from GoodHouse.utils.f import find
+from GoodHouse.utils.useful_functions import find
 from GoodHouse.xpath import souhujiaodian as shjd_xp
 from GoodHouse.settings import CITY
 
@@ -258,4 +258,3 @@ class Souhujiaodian(Spider):
             room['room_description'] = find(room_des, '../div/text()')
 
         yield room
-

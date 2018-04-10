@@ -49,7 +49,7 @@ class Anjuke(Spider):
         # 获取每页所有房源链接并逐一遍历
         house_links = find(response, ajk_xp.HOUSE_LINKS, False)
         if not house_links:
-            self.logger.error('cannot find house_link of %s', response.url)
+            self.logger.error('cannot find house link of %s', response.url)
             return
         for house_link in house_links:
             house_id = house_link.rstrip('/').split('/')[-1].split('.')[0]
@@ -243,5 +243,3 @@ class Anjuke(Spider):
             room['room_description'] = ' '.join(room_description)
 
         yield room
-
-

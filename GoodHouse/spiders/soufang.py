@@ -1,5 +1,4 @@
 """
-https://xa.fang.anjuke.com
 created at 2017.12.13 by broholens
 """
 
@@ -8,7 +7,7 @@ import json
 
 from scrapy import Spider, Request
 
-from GoodHouse.utils.f import find
+from GoodHouse.utils.useful_functions import find
 from GoodHouse.xpath import soufang as sf
 from GoodHouse.settings import CITY
 
@@ -188,7 +187,7 @@ class Soufang(Spider):
     def parse_pic_link(self, response):
         pics = response.xpath(sf.PICS)
         if not pics:
-            self.logger.warning('pictures -a unreachable %s', response.url)
+            self.logger.warning('pictures unreachable %s', response.url)
             return
         host = response.url.split('/photo')[0]
         for pic in pics:
