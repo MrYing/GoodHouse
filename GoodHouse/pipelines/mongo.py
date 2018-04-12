@@ -3,11 +3,6 @@ import pymongo
 
 class MongoPipeline(object):
 
-    # collection_name = {
-    #     'anjuke': 'anjuke',
-    #     'anjuke_room': 'anjuke_room'
-    # }
-
     def __init__(self, mongo_uri, mongo_db):
         self.mongo_uri = mongo_uri
         self.mongo_db = mongo_db
@@ -21,23 +16,20 @@ class MongoPipeline(object):
 
     def open_spider(self, spider):
         self.client = pymongo.MongoClient(self.mongo_uri)
+        self.client.drop_database(self.mongo_db)
         self.db = self.client[self.mongo_db]
 
     def close_spider(self, spider):
         self.client.close()
 
     def process_item(self, item, spider):
-        # for pictures
-        if item.get('tag'):
-            item.pop('tag')
-            self.db[item.pop('table')].update_one(
-                {'house_id': item.pop('house_id')},
-                {'$addToSet': item},
-                upsert=True
-            )
+        if 'new_data' in item:
+            item.pop('new_data')
+            self.db[item.pop('table')].insert_one(item)
         else:
+            name, value = item.pop('item')
             self.db[item.pop('table')].update_one(
                 {'house_id': item.pop('house_id')},
-                {'$set': item},
+                {'$push': {name: {'$each': value}}},
                 upsert=True
             )
