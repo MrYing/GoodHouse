@@ -1,24 +1,15 @@
-import re
-import time
-import json
-from math import ceil
-
 from scrapy import Spider, Request
-from selenium import webdriver
-
-from GoodHouse.utils.useful_functions import find, house_type_split
-from GoodHouse.xpath import qq as q
-from GoodHouse.utils.qq_houses_id import qq_houses_id
-from GoodHouse.settings import CITY, base_info_dict
+from utils.useful_functions import find
+from xpath import qq as q
+from utils.qq_houses_id import qq_houses_id
+from settings import CITY, base_info_dict
 
 
 class QQ(Spider):
 
     name = 'qq'
 
-    # custom_settings = {
-    #     'GoodHouse.middlewares.ua.RandomUserAgent': None,
-    # }
+    custom_settings = {'DOWNLOAD_DELAY': 3}
 
     urls = [
         'http://db.house.qq.com/xian',
@@ -26,94 +17,105 @@ class QQ(Spider):
 
     def start_requests(self):
         for url in self.urls:
-            for house_url in qq_houses_id(url):
-                yield Request(house_url)
+            city, housses_ids = qq_houses_id(url)
+            for house_id in housses_ids:
+                info = f'http://db.house.qq.com/{city}_{house_id}/info.html'
+                photo = f'http://photo.house.qq.com/{city}_{house_id}/photo/'
+                news = f'http://db.house.qq.com/{city}_{house_id}/news/'
+                yield Request(info, callback=self.parse_xiangqing,
+                              meta={'house_id': house_id, 'city': city})
 
-    def parse(self, response):
+                yield Request(photo, callback=self.parse_xiangce,
+                              meta={'house_id': house_id})
 
-    # driver = webdriver.Chrome()
-    # driver.set_page_load_timeout(3)
-    #
-    # def start_requests(self):
-    #     for url in self.start_urls:
-    #         self.driver_get(url)
-    #         total_count = self.driver.find_element('search_result_num').text
-    #         city = url.split('/')[-1]
-    #         for _ in range(int(int(total_count) / 10)):
-    #             try:
-    #                 for house in self.driver.find_elements_by_xpath(q.IDS):
-    #                     house_id = house.get_attribute('data-hid')
-    #                     link = url + '_' + house_id + '/'
-    #                     # # 首页
-    #                     # yield Request(
-    #                     #     url=link,
-    #                     #     callback=self.parse_shouye,
-    #                     #     meta={'house_id': house_id, 'city': city}
-    #                     # )
-    #                     # 详情
-    #                     yield Request(
-    #                         url=link + 'info.html',
-    #                         callback=self.parse_xiangqing,
-    #                         meta={'house_id': house_id, 'city': city}
-    #                     )
-    #                     # 相册
-    #                     yield Request(
-    #                         url=link.replace('db', 'photo') + 'photo/',
-    #                         callback=self.parse_xiangce,
-    #                         meta={'house_id': house_id}
-    #                     )
-    #             except:
-    #                 self.logger.warning('houses unreachable %s',
-    #                                     self.driver.current_url)
-    #             try:
-    #                 self.driver.find_element_by_xpath(q.NEXT_PAGE).click()
-    #                 time.sleep(1)
-    #             except:
-    #                 self.logger.warning('next page unreachable %s',
-    #                                     self.driver.current_url)
-    #
-    # def driver_get(self, url):
-    #     try:
-    #         self.driver.get(url)
-    #     except:
-    #         self.driver.execute_script('window.stop();')
-
-    # def parse_shouye(self, response):
-    #     pass
+                yield Request(news, callback=self.parse_news,
+                              meta={'house_id': house_id})
 
     def parse_xiangqing(self, response):
         house = {
+            'new_data': True,
             'table': self.name,
             'house_id': response.meta['house_id'],
-            'city': CITY[response.meta['city']]
+            'city': CITY[response.meta['city']],
+            'building_name': find(response, q.NAME),
+            'alias_name': find(response, q.ALIAS),
+            'description': ''.join(find(response, q.DESCRIPTION, False))
         }
-        items = response.xpath(q.BASIC)
-        if not items:
-            self.logger.warning('basic items unreachable %', response.url)
-        else:
-            for item in items:
+        for div_id in ['basics', 'saleIntro', 'building', 'property']:
+            xp = f'//div[@id="{div_id}"]/div[2]/ul/li'
+            for item in response.xpath(xp):
                 name = find(item, './span/text()')
                 if not name:
                     continue
                 if name not in base_info_dict:
-                    self.logger.warning('! name %s %s', name, response.url)
+                    self.logger.warning('name %s not in dict %s', name, response.url)
                     continue
                 house[base_info_dict[name]] = find(item, './p/text()')
-
-        jtpt = find(response, q.JTPT, False)
-        if not jtpt:
-            self.logger.warning('unreachable jtpt %s', response.url)
-        else:
-            for item in jtpt:
-                if not item:
-                    continue
-                name, value = item.split('：', 1)
-                if name not in base_info_dict:
-                    self.logger.warning('! name %s %s', name, response.url)
-                    continue
-                house[base_info_dict[name]] = value
+        try:
+            other_info = ' '.join(find(response, q.OTHER_INFO_MORE, False))
+        except:
+            other_info = ' '.join(find(response, q.OTHER_INFO, False))
+        house.update({'transportation': other_info})
 
         yield house
 
     def parse_xiangce(self, response):
-        pass
+        """TODO: 如果超过８张，拿不全图片"""
+        pics = response.xpath(q.PICS)
+        if not pics:
+            self.logger.error('pic not found %s', response.url)
+            return
+        pictures = {
+            'house_id': response.meta['house_id'],
+            'table': self.name,
+        }
+        album = []
+        # 房型
+        if find(pics[0], './@id') == '_apartment':
+            yield {
+                'new_data': True,
+                'house_id': response.meta['house_id'],
+                'table': self.name + '_room',
+                'room_album': [
+                    {
+                        'room_label': find(item, './div[2]/a/text()'), 
+                        'room_url': find(item, q.IMG)
+                    }
+                    for item in pics[0].xpath('.//ul/li')
+                ]
+            }
+
+        # 所有类型图片
+        for pic in pics:
+            title = find(pic, q.TITLE)
+            for src in find(pic, q.IMG, False):
+                album.append({
+                    'picture_title': title,
+                    'picture_url': src
+                })
+        pictures.update({'item': ('album', album)})
+        yield pictures
+
+    def parse_news(self, response):
+        # TODO: 只获取了第一页
+        story_list = response.xpath('//div[@class="bd"]')
+        if not story_list:
+            self.logger.warning('no story %s', response.url)
+            return
+
+        news = [
+            {
+                'update_at': find(story, './div/span/text()'),
+                'news_content': {
+                    'news_link': find(story, './/h3/a/@href'),
+                    'news_title': find(story, './/h3/a/text()')
+                }
+            }
+            for story in story_list
+        ]
+
+        yield {
+            'house_id': response.meta['house_id'],
+            'table': self.name,
+            'item': ('news', news)
+        }

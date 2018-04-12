@@ -7,14 +7,14 @@ from math import ceil
 
 from scrapy import Spider, Request
 
-from GoodHouse.utils.useful_functions import find
-from GoodHouse.xpath import souhujiaodian as shjd_xp
-from GoodHouse.settings import CITY
+from utils.useful_functions import find
+from xpath import souhujiaodian as shjd_xp
+from settings import CITY, base_info_dict
 
 
 class Souhujiaodian(Spider):
 
-    name = 'souhujiaodian'
+    name = 'shjd'
 
     start_urls = [
         'https://xian.focus.cn/loupan/',
@@ -26,46 +26,46 @@ class Souhujiaodian(Spider):
 
     ]
 
-    kw_dict = {
-        '楼盘名称': 'name',
-        '建成年代': 'built_ear',
-        '物业类型': 'property_type',
-        '项目特色': 'features',
-        # '参考单价': 'price',
-        '建筑类型': 'building_type',
-        '装修标准': 'decoration_standards',
-        '产权年限': 'durable_years',
-        '装修情况': 'renovation_condition',
-        '开发商': 'developer',
-        '环线位置': 'region',  # 'loop_location',
-        '投资商': 'investor',
-        '品牌商': 'brand',
-        '楼盘地址': 'address',
-        # '区域位置': 'region',
-        '销售状态': 'sale_status',
-        '开盘时间': 'opening_time',
-        '交房时间': 'delivery_time',
-        '售楼地址': 'sale_address',
-        '售楼电话': 'telephone',
-        '轨道交通': 'rail',
-        '公交路线': 'bus',
-        '交通方式': 'transportation',
-        '占地面积': 'land_area',
-        '建筑面积': 'total_area',
-        '容积率': 'floor_area_ratio',
-        '绿化率': 'green_ratio',
-        '车位数': 'parking_count',
-        '停车位': 'parking_count',
-        '楼栋总数': 'building_count',
-        '总户数': 'householder_count',
-        '物业费': 'property_fee',
-        '周边配套': 'peripheral_facilities',
-        '学校': 'school',
-        '内部配套': 'internal_facilities',
-        '建材设备': 'building_material_equipment',
-        '供暖方式': 'heating_method',
-        '物业公司': 'property_company',
-    }
+    # kw_dict = {
+    #     '楼盘名称': 'name',
+    #     '建成年代': 'built_ear',
+    #     '物业类型': 'property_type',
+    #     '项目特色': 'features',
+    #     # '参考单价': 'price',
+    #     '建筑类型': 'building_type',
+    #     '装修标准': 'decoration_standards',
+    #     '产权年限': 'durable_years',
+    #     '装修情况': 'renovation_condition',
+    #     '开发商': 'developer',
+    #     '环线位置': 'region',  # 'loop_location',
+    #     '投资商': 'investor',
+    #     '品牌商': 'brand',
+    #     '楼盘地址': 'address',
+    #     # '区域位置': 'region',
+    #     '销售状态': 'sale_status',
+    #     '开盘时间': 'opening_time',
+    #     '交房时间': 'delivery_time',
+    #     '售楼地址': 'sale_address',
+    #     '售楼电话': 'telephone',
+    #     '轨道交通': 'rail',
+    #     '公交路线': 'bus',
+    #     '交通方式': 'transportation',
+    #     '占地面积': 'land_area',
+    #     '建筑面积': 'total_area',
+    #     '容积率': 'floor_area_ratio',
+    #     '绿化率': 'green_ratio',
+    #     '车位数': 'parking_count',
+    #     '停车位': 'parking_count',
+    #     '楼栋总数': 'building_count',
+    #     '总户数': 'householder_count',
+    #     '物业费': 'property_fee',
+    #     '周边配套': 'peripheral_facilities',
+    #     '学校': 'school',
+    #     '内部配套': 'internal_facilities',
+    #     '建材设备': 'building_material_equipment',
+    #     '供暖方式': 'heating_method',
+    #     '物业公司': 'property_company',
+    # }
 
     room_details_dict = {
         '居     室：': 'house_type',
@@ -81,23 +81,25 @@ class Souhujiaodian(Spider):
             self.logger.error('total count not clear! %s', response.url)
             return
         total_pages = int(ceil(int(total_count) / 20))
-        if response.url.startswith('http://sz.focus.cn/'):
-            url = response.url.strip('.html') + '_p{}' + '.html'
-            url_xiangqing = 'http://sz.focus.cn/loupan/' + '{}/xiangxi/'
-            url_huxing = 'http://sz.focus.cn/loupan/' + '{}/huxing/'
-            url_xiangce = 'http://sz.focus.cn/loupan/' + '{}/tu/'
-        else:
-            url = response.url + 'p{}/'
-            url_xiangqing = response.url + '{}/xiangqing.html'
-            url_huxing = response.url + '{}/huxing/'
-            url_xiangce = response.url + '{}/xiangce/'
+        # if response.url.startswith('http://sz.focus.cn/'):
+        #     url = response.url.strip('.html') + '_p{}' + '.html'
+        #     url_xiangqing = 'http://sz.focus.cn/loupan/' + '{}/xiangxi/'
+        #     url_huxing = 'http://sz.focus.cn/loupan/' + '{}/huxing/'
+        #     url_xiangce = 'http://sz.focus.cn/loupan/' + '{}/tu/'
+        # else:
+        url = response.url + 'p{}/'
+        url_xiangqing = response.url + '{}/xiangqing.html'
+        url_huxing = response.url + '{}/huxing/'
+        url_xiangce = response.url + '{}/xiangce/'
+        url_dongtai = response.url + '{}/dongtai/'
         for page in range(1, total_pages + 1):
             yield Request(url.format(page),
                           callback=self.parse_house_link,
                           meta={
                               'xq': url_xiangqing,
                               'hx': url_huxing,
-                              'xc': url_xiangce
+                              'xc': url_xiangce,
+                              'dt': url_dongtai
                           })
 
     def parse_house_link(self, response):
@@ -119,12 +121,17 @@ class Souhujiaodian(Spider):
             yield Request(url=response.meta['xc'].format(house_id),
                           callback=self.parse_xiangce_link,
                           meta={'house_id': house_id})
+            # 动态
+            yield Request(url=response.meta['dt'].format(house_id),
+                          callback=self.parse_news,
+                          meta={'house_id': house_id})
 
     def parse_xiangqing(self, response):
         city = response.url.split('.')[0].split('/')[-1]
         house = {
+            'new_data': True,
             'city': CITY[city],
-            'table': 'souhujiaodian',
+            'table': self.name,
             'house_id': response.meta['house_id'],
             'alias_name': find(response, shjd_xp.OTHER_NAME),
         }
@@ -180,13 +187,13 @@ class Souhujiaodian(Spider):
             find(item, f'./td[@class="label-{d}"]/text()').strip('：')
         value = find(item, f'./td[@class="text-{d}"]/text()') or \
             find(item, f'./td[@class="text-full"]/text()')
-        if not key:
+        if not key or key == '售楼电话':
             return
 
-        if not self.kw_dict.get(key):
+        if key not in base_info_dict:
             self.logger.warning('unknown key %s', key)
             return
-        house[self.kw_dict[key]] = value
+        house[base_info_dict[key]] = value
 
     def parse_xiangce_link(self, response):
         pics = response.xpath(shjd_xp.PICTURE_URLS)
@@ -204,16 +211,16 @@ class Souhujiaodian(Spider):
     def parse_xiangce(self, response):
         yield {
             'house_id': response.meta['house_id'],
-            'tag': 'album',
-            'table': 'souhujiaodian',
-            'album': [
-                {
-                    'picture_url': find(img, './@src'),
-                    'picture_label': response.meta['label'],
-                    'picture_description': find(img, './@data-name')
-                }
-                for img in response.xpath(shjd_xp.PICTURES)
-            ]
+            'table': self.name,
+            'item': ('album',
+                     [
+                        {
+                            'picture_url': find(img, './@src'),
+                            'picture_label': response.meta['label'],
+                            'picture_description': find(img, './@data-name')
+                        }
+                        for img in response.xpath(shjd_xp.PICTURES)
+                     ])
         }
 
     def parse_huxing_link(self, response):
@@ -228,8 +235,9 @@ class Souhujiaodian(Spider):
 
     def parse_huxing(self, response):
         room = {
+            'new_data': True,
             'house_id': response.meta['house_id'],
-            'table': 'souhujiaodian_room',
+            'table': self.name + '_room',
         }
 
         room_pics = find(response, shjd_xp.ROOM_PICS, False)
@@ -258,3 +266,31 @@ class Souhujiaodian(Spider):
             room['room_description'] = find(room_des, '../div/text()')
 
         yield room
+
+    def parse_news(self, response):
+        if response.url.rstrip('/')[-1].isdigit() is False:
+            xp = '//div[@class="module-pagination"]/a/@href'
+            pages = find(response, xp, False)[4:]
+            for page in pages:
+                yield Request(page, callback=self.parse_news,
+                              meta={'house_id': response.meta['house_id']})
+        story_list = response.xpath('//div[@class="new-review-title"]')
+        if not story_list:
+            self.logger.warning( 'no story %s', response.url)
+            return
+        news = [
+            {
+                'update_at': find(story, './div[2]/text()'),
+                'news_content': {
+                    'news_title': find(story, './div[1]/a/text()'),
+                    'news_link': find(story, './div[1]/a/@href')
+                }
+            }
+            for story in story_list
+        ]
+
+        yield {
+            'house_id': response.meta['house_id'],
+            'table': self.name,
+            'item': ('news', news)
+        }

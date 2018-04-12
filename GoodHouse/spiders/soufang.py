@@ -4,17 +4,17 @@ created at 2017.12.13 by broholens
 
 import re
 import json
-
+from copy import deepcopy
 from scrapy import Spider, Request
 
-from GoodHouse.utils.useful_functions import find
-from GoodHouse.xpath import soufang as sf
-from GoodHouse.settings import CITY
+from utils.useful_functions import find
+from xpath import soufang as sf
+from settings import CITY, base_info_dict
 
 
 class Soufang(Spider):
 
-    name = 'soufang'
+    name = 'sf'
 
     custom_settings = {
         'DOWNLOAD_DELAY': 1,
@@ -27,20 +27,11 @@ class Soufang(Spider):
     picture_url = '{}/house/ajaxrequest/photolist_get.php?newcode={}&type={}&nextpage={}'
     huxing_url = '{}/house/ajaxrequest/householdlist_get.php?newcode={}&count=false&start=0&limit=100&room=all'
 
-    kw_dict = {
-        '物业类别：': 'property_type',
-        '建筑类别：': ('building_type', './div[2]/span/text()'),
-        '装修状况：': 'renovation_condition',
+    kw_dict = deepcopy(base_info_dict)
+    kw_dict.update({
+        '建筑类别': ('building_type', './div[2]/span/text()'),
         '产权年限：': ('durable_years', './div[2]/div/p/text() | ./div[2]/text()'),
-        '环线位置：': 'region',
         '开': ('developer', './div[2]/a/text()'),
-        '楼盘地址：': 'address',
-        '销售状态：': 'sale_status',
-        '楼盘优惠：': 'discount',
-        '开盘时间：': 'opening_time',
-        '交房时间：': 'delivery_time',
-        '售楼地址：': 'sale_address',
-        '咨询电话：': 'telephone',
         '主力户型：': ('house_type', './div[2]/a/text()'),
 
         '交通': ('transportation', './text()'),
@@ -54,37 +45,13 @@ class Soufang(Spider):
         '大学': ('university', './text()'),
         '小区内部配套': ('peripheral_facilities', './text()'),
 
-        '占地面积：': 'land_area',
-        '建筑面积：': 'total_area',
         '容': 'floor_area_ratio',
         '绿': 'green_ratio',
         '停': 'parking_count',
-        '楼栋总数：': 'building_count',
         '总': 'householder_count',
-        '物业公司：': ('property_company', './div[2]/a/text()'),
+        '物业公司': ('property_company', './div[2]/a/text()'),
         '物': 'property_fee',
-        '物业费描述：': 'property_fee_description',
-        '楼层状况：': 'story_status',
-
-        '写字楼级别：': 'office_building_level',
-        '楼栋情况：': 'story_status',
-        '所属商圈：': 'near_business',
-        '标准层面积：': 'standard_area',
-        '单套面积：': 'single_area',
-        '商业面积：': 'business_area',
-        '办公面积：': 'office_area',
-        '开间面积：': 'room_area',
-        '标准层高：': 'standard_floor_height',
-        '装修情况：': 'renovation_condition',
-        '楼层说明：': 'floor_description',
-        '物业费：': 'property_fee',
-        '物业说明：': 'property_fee_description',
-        '供暖方式：': 'heating_method',
-        '水电类别：': 'hydropower_category',
-        '停车位配置：': 'parking_count',
-        '电梯配置：': 'elevator',
-        '嫌恶设施': 'nasty_facility'
-    }
+    })
 
     ptn_house_id = re.compile('showhouseid\':\'(.*?)\'')
 
@@ -130,21 +97,34 @@ class Soufang(Spider):
                           callback=self.parse_pic_link,
                           meta={'house_id': house_id})
 
+            # 动态
+            yield Request(house_link+f'house/{house_id}/dongtai.htm',
+                          callback=self.parse_news,
+                          meta={
+                              'house_id': house_id,
+                              'house_link': house_link
+                          })
+
     def parse_house(self, response):
         house = {
+            # if false then push the data to array
+            'new_data': True,
             'house_id': response.meta['house_id'],
             'city': CITY[response.meta['city']],
             'table': self.name,
-            'name': find(response, sf.NAME),
-            'alias': find(response, sf.ALIAS),
-            'labels': find(response, sf.LABELS, False),
+            'building_name': find(response, sf.NAME),
+            'alias_name': find(response, sf.ALIAS),
+            'feature': find(response, sf.LABELS, False),
             'price': find(response, sf.PRICE),
             'description': find(response, sf.DESCRIPTION)
         }
         # 参数
         for item in response.xpath(sf.INFO):
             name = find(item, './div[1]/text() | ./span/text()')
-            if not name or name in ['项目特色：', '楼盘特色：', '预售许可证：']:
+            if not name:
+                continue
+            name = name.strip('：')
+            if name in ['项目特色', '楼盘特色', '预售许可证', '咨询电话']:
                 continue
             if name not in self.kw_dict:
                 self.logger.warning('name %s unknown %s', name, response.url)
@@ -252,14 +232,14 @@ class Soufang(Spider):
 
         yield {
             'house_id': response.meta['house_id'],
-            'tag': 'album',
             'table': self.name,
-            'album': album
+            'item': ('album', album)
         }
 
     def parse_room(self, response):
         for room in json.loads(response.text):
             yield {
+                'new_data': True,
                 'table': self.name + '_room',
                 'house_id': response.meta['house_id'],
                 'reference_price': room['reference_price'] +
@@ -279,3 +259,33 @@ class Soufang(Spider):
                     'picture_title': room.get('housetitle', '')
                 }]
             }
+
+    def parse_news(self, response):
+        if '_' not in response.url:
+            pages = set(find(response, '//div[@class="page"]//a/@href', False))
+            for page in pages:
+                yield Request(response.meta['house_link'].strip('/') + page,
+                              callback=self.parse_news,
+                              meta={'house_id': response.meta['house_id']})
+        story_list = response.xpath('//li[@class="storyList"]')
+        if not story_list:
+            self.logger.warning('no story %s', response.url)
+            return
+        news = []
+        for story in story_list:
+            try:
+                title = find(story, './h2/a/text()')
+                link = find(story, './h2/a/@href')
+                news_content = {'news_title': title, 'news_link': link}
+            except:
+                news_content = ' '.join(find(story, './p/text()', False))
+            news.append({
+                'update_at': find(story, './div/text()'),
+                'news_content': news_content
+            })
+
+        yield {
+            'house_id': response.meta['house_id'],
+            'table': self.name,
+            'item': ('news', news)
+        }

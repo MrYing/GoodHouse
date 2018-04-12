@@ -6,20 +6,20 @@ created at 2017.12.4 by broholens
 import re
 import json
 from scrapy import Spider, Request
-from GoodHouse.utils.useful_functions import find
-from GoodHouse.utils.useful_functions import house_type_split
-from GoodHouse.xpath import anjuke as ajk_xp
-from GoodHouse.settings import CITY
-from GoodHouse.settings import base_info_dict
-from GoodHouse.settings import room_details_dict
-from GoodHouse.settings import room_price_dict
+from utils.useful_functions import find
+from utils.useful_functions import house_type_split
+from xpath import anjuke as ajk_xp
+from settings import CITY
+from settings import base_info_dict
+from settings import room_details_dict
+from settings import room_price_dict
 
 
 class Anjuke(Spider):
     """
     获取指定城市安居客新房数据
     """
-    name = 'anjuke'
+    name = 'ajk'
 
     start_urls = [
         'https://xa.fang.anjuke.com/',
@@ -72,10 +72,15 @@ class Anjuke(Spider):
             yield Request(url.replace('canshu', 'xiangce'),
                           callback=self.parse_pic,
                           meta={'house_id': house_id})
+            # 动态
+            yield Request(url.replace('canshu', 'officialnews'),
+                          callback=self.parse_news,
+                          meta={'house_id': house_id})
 
     def parse_house(self, response):
         # 解析房源的基本参数
         house = {
+            'new_data': True,
             'sale_status': find(response, ajk_xp.SALE_STATUS),
             'house_id': response.meta['house_id'],
             'city': response.meta['city'],
@@ -134,17 +139,17 @@ class Anjuke(Spider):
 
         yield {
             'house_id': response.meta['house_id'],
-            'tag': 'album',
             'table': self.name,
-            'album': [
-                {
-                    'picture_label': label,
-                    'picture_url': url,
-                    'picture_description': des
-                }
-                for label, pic in zip(labels, data)
-                for url, des in zip(pic['big'], pic['image_des'])
-            ]
+            'item': ('album',
+                     [
+                        {
+                            'picture_label': label,
+                            'picture_url': url,
+                            'picture_description': des
+                        }
+                        for label, pic in zip(labels, data)
+                        for url, des in zip(pic['big'], pic['image_des'])
+                     ])
         }
 
     def parse_pictorial(self, response):
@@ -156,16 +161,16 @@ class Anjuke(Spider):
 
         yield {
             'house_id': response.meta['house_id'],
-            'tag': 'pictorial',
             'table': self.name,
-            'pictorial': [
-                {
-                    'picture_url': find(item, './/img/@data-src'),
-                    'picture_title': find(item, './/h3/text()'),
-                    'picture_description': find(item, './/p/text()')
-                }
-                for item in pic_items
-            ][:-2]
+            'item': ('pictorial',
+                     [
+                        {
+                            'picture_url': find(item, './/img/@data-src'),
+                            'picture_title': find(item, './/h3/text()'),
+                            'picture_description': find(item, './/p/text()')
+                        }
+                        for item in pic_items
+                     ][:-2])
         }
 
     def parse_room_count(self, response):
@@ -190,6 +195,7 @@ class Anjuke(Spider):
     def parse_room(self, response):
         # 解析户型数据
         room = {
+            'new_data': True,
             'house_id': response.url.split('/')[-1].split('-')[0],
             'table': self.name + '_room'
         }
@@ -243,3 +249,31 @@ class Anjuke(Spider):
             room['room_description'] = ' '.join(room_description)
 
         yield room
+
+    def parse_news(self, response):
+        story_list = response.xpath('//div[@id="all_hidden"]/div')
+        if not story_list:
+            self.logger.warning('no story %s', response.url)
+            return
+        news = []
+        for story in story_list:
+            link = find(story, './@link')
+            _news = {
+                'news_content': {'news_link': link},
+                'update_at': link.split('/')[-2]
+            }
+            try:
+                img = story.xpath('.//img')[0]
+                _news['news_content'].update({
+                    'news_title': find(img, './@alt'),
+                    'img_link': find(img, './@src')
+                })
+            except:
+                pass
+            news.append(_news)
+
+        yield {
+            'house_id': response.meta['house_id'],
+            'table': self.name,
+            'item': ('news', news)
+        }
