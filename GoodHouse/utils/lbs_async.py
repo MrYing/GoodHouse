@@ -1,7 +1,6 @@
 """
 get pois by gaodeAPI
 """
-import time
 import logging
 import asyncio
 from random import choice
@@ -11,7 +10,7 @@ import aiohttp
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 
-from GoodHouse.settings import AMAP_KEYS, MONGO_DATABASE, MONGO_URI
+from settings import AMAP_KEYS, MONGO_DATABASE, MONGO_URI
 
 logging.basicConfig(
     level=logging.INFO
@@ -176,6 +175,7 @@ if __name__ == '__main__':
     # lbs.store_pois('anjuke')
     while True:
         # time.sleep(5*60)
-        LBS().store_pois('anjuke')
-        LBS().store_pois('souhujiaodian')
-        LBS().store_pois('soufang')
+        LBS().store_pois('ajk')
+        # LBS().store_pois('shjd')
+        # LBS().store_pois('sf')
+        # LBS().store_pois('qq')
