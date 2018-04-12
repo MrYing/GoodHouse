@@ -1,7 +1,10 @@
-IDS = '//div[@id="search_result_list"]/div'
-NEXT_PAGE = '//div[@id="search_result_page"]/a[last()]'
-
-NAME = '//div[contains(@class, "name")]/h2[@class="yh"]/text()'
-DESCRIPTION = '//i[@id="housedetailmore"]/text()'
-BASIC = '//div[contains(@class, "mt bor")]/div[@class="bd"]/ul/li'
-JTPT = '//div[contains(@class, "jtpt")]/div[@class="bd"]/div/div[2]/text()'
+# info
+NAME = '//div[contains(@class, "elite")]/div/h2[@class="yh"]/text()'
+ALIAS = '//div[contains(@class, "elite")][1]/div/span/text()'
+DESCRIPTION = '//i[@id="housedetailless"]/text()'
+OTHER_INFO = '//div[contains(@class, "jtpt")]/div[@class="bd"]/div/div/text()'
+OTHER_INFO_MORE = '//div[contains(@class, "jtpt")]/div[@class="bd"]/div/div[2]/text()'
+# pic
+PICS = '//div[@id="content"]/div'
+TITLE = './/h2/text()'
+IMG = './/img/@src'
